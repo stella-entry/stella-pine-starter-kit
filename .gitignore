@@ -1,0 +1,11 @@
+# Pine Script Files
+*.pine text eol=lf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
