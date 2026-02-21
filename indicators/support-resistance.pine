@@ -1,0 +1,140 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Stella
+
+//@version=6
+indicator("Stella's Support/Resistance Levels", overlay=true, max_lines_count=500)
+
+// ============================================
+// Support & Resistance Levels
+// サポート・レジスタンスレベル
+// ============================================
+// 
+// 【English】
+// Automatically plots support and resistance levels based on pivot points.
+// - Green lines: Support levels (previous lows)
+// - Red lines: Resistance levels (previous highs)
+// - Dashed lines: Recently broken levels
+//
+// 【日本語】
+// ピボットポイントに基づいてサポート・レジスタンスレベルを自動描画。
+// - 緑線: サポートレベル（過去の安値）
+// - 赤線: レジスタンスレベル（過去の高値）
+// - 破線: 最近ブレイクされたレベル
+
+// ----------------------------------------
+// Inputs / 入力パラメータ
+// ----------------------------------------
+
+// Pivot settings / ピボット設定
+leftBars = input.int(15, "Left Bars / 左本数", minval=1, maxval=100)
+rightBars = input.int(15, "Right Bars / 右本数", minval=1, maxval=100)
+
+// Display settings / 表示設定
+showSupport = input.bool(true, "Show Support / サポート表示")
+showResistance = input.bool(true, "Show Resistance / レジスタンス表示")
+maxLines = input.int(10, "Max Lines per Type / 各種最大ライン数", minval=1, maxval=20)
+
+// Style / スタイル
+lineWidth = input.int(1, "Line Width / ライン太さ", minval=1, maxval=5)
+extendLines = input.bool(false, "Extend Lines / ライン延長")
+
+// ----------------------------------------
+// Calculations / 計算
+// ----------------------------------------
+
+// Pivot high/low / ピボット高値/安値
+ph = ta.pivothigh(high, leftBars, rightBars)
+pl = ta.pivotlow(low, leftBars, rightBars)
+
+// ----------------------------------------
+// Line Management / ライン管理
+// ----------------------------------------
+
+var line[] supportLines = array.new_line(0)
+var line[] resistanceLines = array.new_line(0)
+
+// Add new support line / 新しいサポートライン追加
+if not na(pl) and showSupport
+    newSupport = line.new(bar_index - rightBars, pl, bar_index, pl, 
+                           color=color.green, 
+                           width=lineWidth,
+                           style=extendLines ? line.style_solid : line.style_dashed,
+                           extend=extendLines ? extend.right : extend.none)
+    array.push(supportLines, newSupport)
+    
+    // Remove old lines / 古いライン削除
+    if array.size(supportLines) > maxLines
+        line.delete(array.shift(supportLines))
+
+// Add new resistance line / 新しいレジスタンスライン追加
+if not na(ph) and showResistance
+    newResistance = line.new(bar_index - rightBars, ph, bar_index, ph,
+                              color=color.red,
+                              width=lineWidth,
+                              style=extendLines ? line.style_solid : line.style_dashed,
+                              extend=extendLines ? extend.right : extend.none)
+    array.push(resistanceLines, newResistance)
+    
+    // Remove old lines / 古いライン削除
+    if array.size(resistanceLines) > maxLines
+        line.delete(array.shift(resistanceLines))
+
+// ----------------------------------------
+// Break Detection / ブレイク検出
+// ----------------------------------------
+
+// Check for breaks and change style / ブレイク検出してスタイル変更
+for i = 0 to array.size(supportLines) - 1
+    if i < array.size(supportLines)
+        ln = array.get(supportLines, i)
+        level = line.get_y1(ln)
+        if close < level  // Broken support / ブレイクされたサポート
+            line.set_style(ln, line.style_dotted)
+            line.set_color(ln, color.new(color.green, 50))
+
+for i = 0 to array.size(resistanceLines) - 1
+    if i < array.size(resistanceLines)
+        ln = array.get(resistanceLines, i)
+        level = line.get_y1(ln)
+        if close > level  // Broken resistance / ブレイクされたレジスタンス
+            line.set_style(ln, line.style_dotted)
+            line.set_color(ln, color.new(color.red, 50))
+
+// ----------------------------------------
+// Labels / ラベル
+// ----------------------------------------
+
+// Show labels for recent levels / 最近のレベルにラベル表示
+if not na(pl) and showSupport
+    label.new(bar_index - rightBars, pl, "S", 
+              color=color.new(color.green, 80),
+              textcolor=color.white,
+              style=label.style_label_up,
+              size=size.tiny)
+
+if not na(ph) and showResistance
+    label.new(bar_index - rightBars, ph, "R",
+              color=color.new(color.red, 80),
+              textcolor=color.white,
+              style=label.style_label_down,
+              size=size.tiny)
+
+// ----------------------------------------
+// Info Table / 情報テーブル
+// ----------------------------------------
+
+var table infoTable = table.new(position.top_right, 2, 3)
+
+if barstate.islast
+    // Count active levels / アクティブレベル数
+    activeSupport = array.size(supportLines)
+    activeResistance = array.size(resistanceLines)
+    
+    table.cell(infoTable, 0, 0, "Type", bgcolor=color.gray, text_color=color.white)
+    table.cell(infoTable, 1, 0, "Count", bgcolor=color.gray, text_color=color.white)
+    
+    table.cell(infoTable, 0, 1, "Support / サポート", text_color=color.green)
+    table.cell(infoTable, 1, 1, str.tostring(activeSupport), text_color=color.green)
+    
+    table.cell(infoTable, 0, 2, "Resistance / レジスタンス", text_color=color.red)
+    table.cell(infoTable, 1, 2, str.tostring(activeResistance), text_color=color.red)

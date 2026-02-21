@@ -1,0 +1,107 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Stella
+
+//@version=6
+strategy("Stella's Bollinger Bands", 
+         overlay=true, 
+         default_qty_type=strategy.percent_of_equity, 
+         default_qty_value=10,
+         initial_capital=1000,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+
+// ============================================
+// Bollinger Bands Mean Reversion Strategy
+// ボリンジャーバンド平均回帰戦略
+// ============================================
+// 
+// 【English】
+// Mean reversion strategy trading off band touches.
+// - Long: Price touches or closes below lower band
+// - Exit Long: Price touches or closes above upper band
+// - Works best in ranging/sideways markets
+//
+// 【日本語】
+// バンドタッチでの平均回帰戦略。
+// - ロング: 価格が下部バンドにタッチまたは下抜け
+// - 決済: 価格が上部バンドにタッチまたは上抜け
+// - レンジ相場で最も効果的
+
+// ----------------------------------------
+// Inputs / 入力パラメータ
+// ----------------------------------------
+length = input.int(20, "BB Length / BB期間", minval=1)
+mult = input.float(2.0, "BB Multiplier / BB乗数", minval=0.1, maxval=5.0)
+
+// Entry mode / エントリーモード
+entryMode = input.string("Close", "Entry Mode / エントリーモード", 
+                          options=["Close", "Touch"])
+
+// Stop Loss / 損切り
+useStopLoss = input.bool(true, "Use Stop Loss / 損切り使用")
+stopLossPercent = input.float(5.0, "Stop Loss % / 損切り%", minval=0.1, maxval=50)
+
+// Take Profit at opposite band / 利確（対向バンド）
+useBandExit = input.bool(true, "Exit at Opposite Band / 対向バンドで決済")
+
+// ----------------------------------------
+// Calculations / 計算
+// ----------------------------------------
+
+// Bollinger Bands / ボリンジャーバンド
+[middle, upper, lower] = ta.bb(close, length, mult)
+
+// Band width (for volatility filter) / バンド幅（ボラティリティフィルター用）
+bbWidth = (upper - lower) / middle * 100
+
+// ----------------------------------------
+// Entry Conditions / エントリー条件
+// ----------------------------------------
+
+// Long conditions / ロング条件
+if entryMode == "Close"
+    longCondition = close < lower
+else
+    longCondition = low <= lower
+
+// Exit conditions / 決済条件
+if entryMode == "Close"
+    exitCondition = close > upper
+else
+    exitCondition = high >= upper
+
+// ----------------------------------------
+// Execute Trades / 取引実行
+// ----------------------------------------
+
+// Long entry / ロングエントリー
+if longCondition and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+
+// Exit at upper band / 上部バンドで決済
+if useBandExit and exitCondition and strategy.position_size > 0
+    strategy.close("Long")
+
+// Stop Loss / 損切り
+if useStopLoss and strategy.position_size > 0
+    strategy.exit("SL", "Long", stop=strategy.position_avg_price * (1 - stopLossPercent / 100))
+
+// ----------------------------------------
+// Plotting / プロット
+// ----------------------------------------
+
+// Bollinger Bands / ボリンジャーバンド
+plot(middle, "BB Middle", color=color.blue, linewidth=1)
+p1 = plot(upper, "BB Upper", color=color.green, linewidth=1)
+p2 = plot(lower, "BB Lower", color=color.red, linewidth=1)
+
+// Fill bands / バンド塗りつぶし
+fill(p1, p2, color=color.new(color.blue, 90))
+
+// Entry markers / エントリーマーカー
+plotshape(longCondition and strategy.position_size == 0, "Long Signal", 
+          shape.triangleup, location.belowbar, color.green, size=size.small)
+
+// Band touch highlights / バンドタッチハイライト
+bgcolor(low <= lower ? color.new(color.green, 80) : na, title="Lower Band Touch")
+bgcolor(high >= upper ? color.new(color.red, 80) : na, title="Upper Band Touch")

@@ -1,0 +1,101 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Stella
+
+//@version=6
+strategy("Stella's MACD Crossover", 
+         overlay=false, 
+         default_qty_type=strategy.percent_of_equity, 
+         default_qty_value=10,
+         initial_capital=1000,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1)
+
+// ============================================
+// MACD Crossover Strategy / MACDクロスオーバー戦略
+// ============================================
+// 
+// 【English】
+// Classic momentum strategy using MACD signal line crossovers.
+// - Long: MACD crosses above signal line
+// - Short: MACD crosses below signal line
+// - Optional: Add EMA filter to trade only with trend
+//
+// 【日本語】
+// MACDシグナルラインのクロスオーバーを使った古典的なモメンタム戦略。
+// - ロング: MACDがシグナルラインを上抜け
+// - ショート: MACDがシグナルラインを下抜け
+// - オプション: EMAフィルターでトレンド方向のみ取引
+
+// ----------------------------------------
+// Inputs / 入力パラメータ
+// ----------------------------------------
+fastLength = input.int(12, "Fast EMA Period / 短期EMA期間", minval=1)
+slowLength = input.int(26, "Slow EMA Period / 長期EMA期間", minval=1)
+signalLength = input.int(9, "Signal Period / シグナル期間", minval=1)
+
+useTrendFilter = input.bool(false, "Use EMA Trend Filter / EMAトレンドフィルター使用")
+emaPeriod = input.int(200, "Trend EMA Period / トレンドEMA期間", minval=1)
+
+// Stop Loss / 損切り
+useStopLoss = input.bool(true, "Use Stop Loss / 損切り使用")
+stopLossPercent = input.float(8.0, "Stop Loss % / 損切り%", minval=0.1, maxval=50)
+
+// ----------------------------------------
+// Calculations / 計算
+// ----------------------------------------
+
+// MACD calculation / MACD計算
+[macdLine, signalLine, histLine] = ta.macd(close, fastLength, slowLength, signalLength)
+
+// Trend filter / トレンドフィルター
+trendEma = ta.ema(close, emaPeriod)
+isUptrend = close > trendEma
+isDowntrend = close < trendEma
+
+// ----------------------------------------
+// Entry Conditions / エントリー条件
+// ----------------------------------------
+
+// MACD crossover / MACDクロスオーバー
+macdBullishCross = ta.crossover(macdLine, signalLine)
+macdBearishCross = ta.crossunder(macdLine, signalLine)
+
+// With trend filter / トレンドフィルター付き
+longCondition = useTrendFilter ? (macdBullishCross and isUptrend) : macdBullishCross
+shortCondition = useTrendFilter ? (macdBearishCross and isDowntrend) : macdBearishCross
+
+// ----------------------------------------
+// Execute Trades / 取引実行
+// ----------------------------------------
+
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// Stop Loss / 損切り
+if useStopLoss
+    if strategy.position_size > 0
+        strategy.exit("SL Long", "Long", stop=strategy.position_avg_price * (1 - stopLossPercent / 100))
+    if strategy.position_size < 0
+        strategy.exit("SL Short", "Short", stop=strategy.position_avg_price * (1 + stopLossPercent / 100))
+
+// ----------------------------------------
+// Plotting / プロット
+// ----------------------------------------
+
+plot(macdLine, "MACD", color=color.blue, linewidth=2)
+plot(signalLine, "Signal", color=color.orange, linewidth=2)
+plot(histLine, "Histogram", style=plot.style_columns, 
+     color=histLine >= 0 ? color.green : color.red)
+
+// Zero line / ゼロライン
+hline(0, "Zero", color=color.gray, linestyle=hline.style_dashed)
+
+// Trend EMA (if enabled) / トレンドEMA（有効時）
+plot(useTrendFilter ? trendEma : na, "Trend EMA", color=color.purple, linewidth=2)
+
+// Entry markers / エントリーマーカー
+plotshape(longCondition, "Long Signal", shape.triangleup, location.bottom, color.green, size=size.small)
+plotshape(shortCondition, "Short Signal", shape.triangledown, location.top, color.red, size=size.small)
