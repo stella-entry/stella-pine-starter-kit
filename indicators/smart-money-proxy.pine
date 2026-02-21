@@ -1,0 +1,103 @@
+//@version=6
+indicator("Stella's Smart Money Proxy", overlay=true, max_labels_count=50)
+
+// ============================================
+// 概要
+// ============================================
+// 大口（Smart Money）の動向を価格/ボリュームから推定
+// ※ 実際のオンチェーンデータは使用できないため、
+//    大陽線/大陰線 + 高ボリューム で推定
+
+// ============================================
+// パラメーター設定
+// ============================================
+// ボディサイズ判定
+bodyMultiplier = input.float(1.5, "大口判定: 平均ボディ倍率", minval=1.0, maxval=3.0, step=0.1)
+
+// ボリューム判定
+useVolumeFilter = input.bool(true, "ボリュームフィルターを使用")
+volumeMultiplier = input.float(1.5, "ボリューム倍率", minval=1.0, maxval=5.0, step=0.1)
+volumeLookback = input.int(20, "ボリューム平均期間", minval=5, maxval=100)
+
+// 表示
+showLabels = input.bool(true, "シグナルラベルを表示")
+showBox = input.bool(true, "累積ゾーンを表示")
+
+// ============================================
+// 計算
+// ============================================
+// ボディサイズ
+body = math.abs(close - open)
+avgBody = ta.sma(body, 20)
+
+// 大口条件
+isBigBody = body > avgBody * bodyMultiplier
+isBullish = close > open
+isBearish = close < open
+
+// ボリューム条件
+avgVolume = ta.sma(volume, volumeLookback)
+isHighVolume = volume > avgVolume * volumeMultiplier
+volumeCondition = useVolumeFilter ? isHighVolume : true
+
+// Smart Money判定
+smartBuy = isBigBody and isBullish and volumeCondition
+smartSell = isBigBody and isBearish and volumeCondition
+
+// ============================================
+// 累積追跡
+// ============================================
+var float accumulationStart = na
+var float accumulationEnd = na
+var int accumulationBars = 0
+
+// 累積開始（連続した買い）
+if smartBuy and not smartBuy[1]
+    accumulationStart := low
+    accumulationBars := 1
+
+if smartBuy and smartBuy[1]
+    accumulationStart := math.min(accumulationStart, low)
+    accumulationBars += 1
+    accumulationEnd := high
+
+// 累積終了
+if not smartBuy and accumulationBars > 0
+    accumulationBars := 0
+    accumulationStart := na
+    accumulationEnd := na
+
+// ============================================
+// 表示
+// ============================================
+// シグナルラベル
+if showLabels and smartBuy
+    label.new(bar_index, low, "🐋 BUY", 
+              color=color.new(color.green, 70), textcolor=color.white, 
+              style=label.style_label_up, size=size.small)
+
+if showLabels and smartSell
+    label.new(bar_index, high, "🐋 SELL", 
+              color=color.new(color.red, 70), textcolor=color.white, 
+              style=label.style_label_down, size=size.small)
+
+// 累積ゾーン
+showAccumulation = showBox and accumulationBars >= 2
+bgcolor(showAccumulation ? color.new(color.green, 92) : na)
+
+// 累積ゾーンのボックス
+if showAccumulation and barstate.islast
+    box.new(bar_index - accumulationBars + 1, accumulationStart, bar_index, accumulationEnd, 
+            bgcolor=color.new(color.green, 90), border_color=color.green)
+
+// ============================================
+// アラート
+// ============================================
+alertcondition(smartBuy, "Smart Money 買い", "Smart Moneyの買いシグナル検出")
+alertcondition(smartSell, "Smart Money 売り", "Smart Moneyの売りシグナル検出")
+
+// ============================================
+// インジケーター値（ストラテジー用）
+// ============================================
+// 他のインジケーターから参照できるように公開
+plot(smartBuy ? 1 : smartSell ? -1 : 0, "Smart Money Signal", display=display.none)

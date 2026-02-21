@@ -1,0 +1,98 @@
+//@version=6
+strategy("Stella's RSI + EMA Crossover", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=100)
+
+// ============================================
+// パラメーター設定
+// ============================================
+// RSI設定
+rsiLength = input.int(14, "RSI期間", minval=1, maxval=50)
+overbought = input.int(70, "買われすぎレベル", minval=50, maxval=100)
+oversold = input.int(30, "売られすぎレベル", minval=0, maxval=50)
+
+// EMA設定
+emaLength = input.int(50, "EMA期間", minval=1, maxval=500)
+
+// フィルター
+useTrendFilter = input.bool(true, "200EMAトレンドフィルターを使用")
+trendEmaLength = input.int(200, "トレンド判定EMA期間", minval=1, maxval=500)
+
+// 損切り設定
+useStopLoss = input.bool(true, "損切りを使用")
+stopLossPercent = input.float(2.0, "損切り幅(%)", minval=0.1, maxval=10.0) / 100
+
+// ============================================
+// インジケーター計算
+// ============================================
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// EMA
+ema = ta.ema(close, emaLength)
+trendEma = ta.ema(close, trendEmaLength)
+
+// 表示
+plot(ema, "EMA", color=color.blue, linewidth=2)
+plot(useTrendFilter ? trendEma : na, "Trend EMA", color=color.orange, linewidth=2)
+
+// RSIを別ウィンドウに表示（サブプロット）
+// ※ overlay=trueなのでRSIは別途インジケーターとして追加推奨
+
+// ============================================
+// エントリー条件
+// ============================================
+// トレンド判定
+isUptrend = close > trendEma
+isDowntrend = close < trendEma
+
+// RSI条件
+rsiOversold = rsi < oversold
+rsiOverbought = rsi > overbought
+rsiRising = rsi > rsi[1]
+rsiFalling = rsi < rsi[1]
+
+// 価格条件
+priceAboveEma = close > ema
+priceBelowEma = close < ema
+
+// ロング条件
+// - RSIが売られすぎ域から上昇
+// - 価格がEMAより上
+// - （オプション）200EMAより上
+longCondition = rsiOversold[1] and rsiRising and priceAboveEma
+if useTrendFilter
+    longCondition := longCondition and isUptrend
+
+// ショート条件
+// - RSIが買われすぎ域から下降
+// - 価格がEMAより下
+// - （オプション）200EMAより下
+shortCondition = rsiOverbought[1] and rsiFalling and priceBelowEma
+if useTrendFilter
+    shortCondition := shortCondition and isDowntrend
+
+// ============================================
+// 売買実行
+// ============================================
+if longCondition
+    strategy.entry("Long", strategy.long)
+
+if shortCondition
+    strategy.entry("Short", strategy.short)
+
+// ============================================
+// 損切り
+// ============================================
+if useStopLoss
+    strategy.exit("SL Long", "Long", stop=strategy.position_avg_price * (1 - stopLossPercent))
+    strategy.exit("SL Short", "Short", stop=strategy.position_avg_price * (1 + stopLossPercent))
+
+// ============================================
+// シグナルマーカー
+// ============================================
+plotshape(longCondition, "Long Signal", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(shortCondition, "Short Signal", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// ============================================
+// 背景色（トレンド表示）
+// ============================================
+bgcolor(useTrendFilter and isUptrend ? color.new(color.green, 95) : useTrendFilter and isDowntrend ? color.new(color.red, 95) : na)
