@@ -1,0 +1,40 @@
+//@version=5
+indicator("Stella's Volume Profile", overlay=true, max_boxes_count=500)
+
+// Volume Profile Indicator
+// Shows volume distribution at price levels
+
+lookback = input(100, "Lookback Period")
+row_height = input(10, "Row Height (%)")
+volume_power = input(2.5, "Volume Power")
+
+// Calculate price levels
+highest_price = ta.highest(high, lookback)
+lowest_price = ta.lowest(low, lookback)
+price_range = highest_price - lowest_price
+row_size = price_range * row_height / 100
+
+// Volume at price
+var float[] volume_at_price = array.new_float(100, 0.0)
+
+for i = 0 to 99
+    level_low = lowest_price + (price_range * i / 100)
+    level_high = level_low + row_size
+
+    // Check if current bar's price is in this level
+    in_level = low <= level_high and high >= level_low
+
+    if in_level
+        array.set(volume_at_price, i, array.get(volume_at_price, i) + volume)
+
+// Find highest volume level
+max_volume = array.max(volume_at_price)
+max_index = array.indexof(volume_at_price, max_volume)
+poc_price = lowest_price + (price_range * max_index / 100)
+
+// Plot POC (Point of Control)
+plot(poc_price, "POC", color=color.yellow, linewidth=2)
+
+// Alert when price crosses POC
+alertcondition(ta.crossover(close, poc_price), "POC Cross Up", "Price crossed POC up")
+alertcondition(ta.crossunder(close, poc_price), "POC Cross Down", "Price crossed POC down")

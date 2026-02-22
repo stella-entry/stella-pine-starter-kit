@@ -1,0 +1,49 @@
+//@version=5
+indicator("Stella's MACD + RSI Combo", shorttitle="MRSI", overlay=false)
+
+// MACD + RSI Combination Indicator
+// Combines momentum (MACD) with overbought/oversold (RSI)
+
+// MACD Settings
+fast_len = input(12, "MACD Fast Length")
+slow_len = input(26, "MACD Slow Length")
+sig_len = input(9, "MACD Signal Length")
+
+// RSI Settings
+rsi_len = input(14, "RSI Length")
+rsi_ob = input(70, "RSI Overbought")
+rsi_os = input(30, "RSI Oversold")
+
+// Calculate MACD
+[macd_line, signal_line, hist] = ta.macd(close, fast_len, slow_len, sig_len)
+
+// Calculate RSI
+rsi = ta.rsi(close, rsi_len)
+
+// Combined signals
+bullish = macd_line > signal_line and rsi < rsi_ob
+bearish = macd_line < signal_line and rsi > rsi_os
+strong_bull = macd_line > signal_line and rsi > rsi_ob and rsi < 80
+strong_bear = macd_line < signal_line and rsi < rsi_os and rsi > 20
+
+// Plot MACD
+plot(macd_line, "MACD", color=color.blue)
+plot(signal_line, "Signal", color=color.orange)
+plot(hist, "Histogram", style=plot.style_columns,
+     color=hist > 0 ? color.green : color.red)
+
+// Plot RSI
+hline(rsi_ob, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(50, "Midline", color=color.gray)
+hline(rsi_os, "Oversold", color=color.green, linestyle=hline.style_dashed)
+plot(rsi, "RSI", color=color.purple)
+
+// Signals
+plotshape(bullish, "Bullish", shape.triangleup, location.bottom, color.green, size=size.small)
+plotshape(bearish, "Bearish", shape.triangledown, location.top, color.red, size=size.small)
+
+// Alerts
+alertcondition(bullish, "Bullish Signal", "MACD bullish + RSI healthy")
+alertcondition(bearish, "Bearish Signal", "MACD bearish + RSI healthy")
+alertcondition(strong_bull, "Strong Bull", "MACD + RSI overbought momentum")
+alertcondition(strong_bear, "Strong Bear", "MACD + RSI oversold momentum")

@@ -1,0 +1,56 @@
+//@version=5
+indicator("Stella's Bollinger Squeeze", shorttitle="BSQ", overlay=true)
+
+// Bollinger Bands Squeeze Detector
+// Identifies low volatility periods before potential breakouts
+
+// Settings
+length = input(20, "BB Length")
+mult = input(2.0, "BB Multiplier")
+kc_length = input(20, "KC Length")
+kc_mult = input(1.5, "KC Multiplier")
+squeeze_threshold = input(0.5, "Squeeze Threshold")
+
+// Bollinger Bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upper_bb = basis + dev
+lower_bb = basis - dev
+
+// Keltner Channel
+kc_basis = ta.sma(close, kc_length)
+range_val = ta.sma(ta.tr, kc_length)
+upper_kc = kc_basis + kc_mult * range_val
+lower_kc = kc_basis - kc_mult * range_val
+
+// Squeeze detection
+squeeze = (upper_bb < upper_kc) and (lower_bb > lower_kc)
+no_squeeze = (upper_bb > upper_kc) and (lower_bb < lower_kc)
+
+// Squeeze intensity
+bb_width = (upper_bb - lower_bb) / basis
+kc_width = (upper_kc - lower_kc) / kc_basis
+squeeze_ratio = bb_width / kc_width
+
+// Plot Bollinger Bands
+plot(basis, "BB Basis", color=color.blue)
+p1 = plot(upper_bb, "BB Upper", color=color.blue)
+p2 = plot(lower_bb, "BB Lower", color=color.blue)
+fill(p1, p2, color=color.new(color.blue, 90))
+
+// Squeeze visual
+bgcolor(squeeze ? color.new(color.yellow, 70) : na, title="Squeeze")
+bgcolor(no_squeeze ? color.new(color.gray, 90) : na, title="No Squeeze")
+
+// Breakout signals
+breakout_up = ta.crossover(close, upper_bb) and not squeeze
+breakout_down = ta.crossunder(close, lower_bb) and not squeeze
+
+plotshape(breakout_up, "Breakout Up", shape.triangleup, location.belowbar, color.green, size=size.small)
+plotshape(breakout_down, "Breakout Down", shape.triangledown, location.abovebar, color.red, size=size.small)
+
+// Alerts
+alertcondition(squeeze, "Squeeze Formed", "Bollinger Squeeze detected")
+alertcondition(breakout_up, "Breakout Up", "Price broke above BB")
+alertcondition(breakout_down, "Breakout Down", "Price broke below BB")
+alertcondition(ta.crossover(squeeze_ratio, squeeze_threshold), "Squeeze Relaxing", "Volatility expanding")

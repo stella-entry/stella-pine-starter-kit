@@ -1,0 +1,60 @@
+//@version=5
+indicator("Stella's Multi-EMA Crossover", shorttitle="MEMA", overlay=true)
+
+// Multi-EMA Crossover Indicator
+// Shows trend alignment across multiple timeframes
+
+// EMA Periods
+ema1_len = input(9, "EMA 1 (Fast)")
+ema2_len = input(21, "EMA 2 (Medium)")
+ema3_len = input(55, "EMA 3 (Slow)")
+ema4_len = input(200, "EMA 4 (Trend)")
+
+// Calculate EMAs
+ema1 = ta.ema(close, ema1_len)
+ema2 = ta.ema(close, ema2_len)
+ema3 = ta.ema(close, ema3_len)
+ema4 = ta.ema(close, ema4_len)
+
+// Trend Alignment
+all_bull = ema1 > ema2 and ema2 > ema3 and ema3 > ema4
+all_bear = ema1 < ema2 and ema2 < ema3 and ema3 < ema4
+
+// Partial Alignment (3 EMAs)
+partial_bull = ema1 > ema2 and ema2 > ema3
+partial_bear = ema1 < ema2 and ema2 < ema3
+
+// Crossover signals
+cross_up_1_2 = ta.crossover(ema1, ema2)
+cross_dn_1_2 = ta.crossunder(ema1, ema2)
+cross_up_2_3 = ta.crossover(ema2, ema3)
+cross_dn_2_3 = ta.crossunder(ema2, ema3)
+
+// Plot EMAs
+plot(ema1, "EMA " + str.tostring(ema1_len), color=color.new(color.yellow, 0), linewidth=2)
+plot(ema2, "EMA " + str.tostring(ema2_len), color=color.new(color.orange, 0), linewidth=2)
+plot(ema3, "EMA " + str.tostring(ema3_len), color=color.new(color.blue, 0), linewidth=2)
+plot(ema4, "EMA " + str.tostring(ema4_len), color=color.new(color.purple, 0), linewidth=3)
+
+// Fill trend area
+ema_fill_color = all_bull ? color.new(color.green, 80) : all_bear ? color.new(color.red, 80) : na
+fill(plot(ema1, display=display.none), plot(ema4, display=display.none), color=ema_fill_color)
+
+// Signals
+plotshape(cross_up_1_2 and ema1 > ema4, "Fast Cross Up", shape.triangleup, location.belowbar, color.green, size=size.tiny)
+plotshape(cross_dn_1_2 and ema1 < ema4, "Fast Cross Down", shape.triangledown, location.abovebar, color.red, size=size.tiny)
+
+// Strong signals (3+ EMAs aligned)
+plotshape(all_bull and not all_bull[1], "Full Bull Align", shape.labelup, location.belowbar, color.green, text="BUY", textcolor=color.white, size=size.small)
+plotshape(all_bear and not all_bear[1], "Full Bear Align", shape.labeldown, location.abovebar, color.red, text="SELL", textcolor=color.white, size=size.small)
+
+// Trend Strength Bar
+trend_score = (ema1 > ema2 ? 1 : -1) + (ema2 > ema3 ? 1 : -1) + (ema3 > ema4 ? 1 : -1)
+trend_bar_color = trend_score >= 2 ? color.green : trend_score <= -2 ? color.red : color.gray
+plotshape(trend_score, "Trend Score", shape.circle, location.bottom, trend_bar_color, size=size.tiny, display=display.data_window)
+
+// Alerts
+alertcondition(all_bull and not all_bull[1], "Full Bullish Alignment", "All EMAs aligned bullish")
+alertcondition(all_bear and not all_bear[1], "Full Bearish Alignment", "All EMAs aligned bearish")
+alertcondition(cross_up_1_2, "Fast Cross Up", "EMA 1 crossed above EMA 2")
+alertcondition(cross_dn_1_2, "Fast Cross Down", "EMA 1 crossed below EMA 2")
